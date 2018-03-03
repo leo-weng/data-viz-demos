@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="../lib/d3.v3.min.js"></script>
+<script src="../lib/sankey.js"></script>
+<script src="../lib/d3.tip.v0.6.3.js"></script>
+<style>
+.link {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: 0.2;
+}
+.link:hover {
+    stroke-opacity: 0.4;
+}
+.node text {
+    font-size: 9pt;
+    font-family: sans-serif;
+}
+
+.tip {
+    font-size: 9pt;
+    font-family: sans-serif;
+    background: white;
+    border: #000000;
+    border-width: medium;
+    border-style: solid;
+    padding: 5px;
+}
+</style>
+<body>
+<script type="text/javascript">
+    var racesData = [];
+    var racesHeader = [];
+    var teamsData = [];
+    var teamsHeader = [];
+    var margin = {top: 20, bottom: 20, left: 20, right: 20},
+        width = 960 - margin.left - margin.right,
+        height = 800 - margin.top - margin.bottom;
+
+    d3.csv("races.csv", function(data){
+        racesHeader = d3.keys(data[0]);
+        racesHeader.forEach(function(header){
+            data.forEach(function(d) {  d["points"] = +d["points"]; });
+        });
+        racesData = data;
+    });
+    d3.csv("teams.csv", function(data){
+        teamsHeader = d3.keys(data[0]);
+        teamsHeader.forEach(function(header){
+            data.forEach(function(d) {  d["points"] = +d["points"]; });
+        });
+        teamsData = data;
+        go();
+    });
+    var drivers, races, graph;
+    var edges = [], nodes = [];
+    function go() {
+        races = d3.nest()
+            .key(function(d) {  return d.race; })
+            .entries(racesData);
+        teams = d3.nest()
+            .key(function(d) {  return d.team;  })
+            .entries(teamsData);
+        graph = {"nodes" : [], "links" : []};
+        races.forEach(function (d) {
+            graph.nodes.push({ "name": d.key });
+            d.values.forEach(function(v) {
+                graph.links.push({ "source": v.race,
+                                 "target": v.driver,
+                                 "value": v.points });
+            });
+        });
+        teams.forEach(function(d) {
+            graph.nodes.push({  "name": d.key   });
+        })
+        teamsData.forEach(function (d) {
+             graph.nodes.push({ "name": d.driver });
+             graph.links.push({ "source": d.driver,
+                              "target": d.team,
+                              "value": d.points });
+        });
+
+
+        /*graph.links.forEach(function (d) {
+            var sourceNode = graph.nodes.filter(function(n) {
+                return n.name == d.source;
+            })[0],
+                targetNode = graph.nodes.filter(function(n) {
+                    return n.name == d.target;
+                })[0];
+            edges.push({
+                source: sourceNode.name,
+                target: targetNode.name,
+                value: d.value
+            });
+        });*/
+        //graph.links.forEach(function (d, i) {
+        //    graph.links[i].source = graph.nodes.indexOf(graph.links[i].source);
+        //    graph.links[i].target = graph.nodes.indexOf(graph.links[i].target);
+        //});
+        //graph.nodes.forEach(function (d, i) {
+        //   graph.nodes[i] = { "name": d };
+        //});
+        console.log(graph);
+        /*nodes = d3.keys(d3.nest()
+         .key(function (d) { return d.name; })
+         .map(graph.nodes));*/
+
+         graph.nodes.forEach(function(g) {
+             temp = true;
+             tempNode = g;
+             nodes.forEach(function(n) {
+                 if (n.name == g.name) {
+                     tempNode = n + g;
+                     temp = false;
+                 }
+             })
+             if (temp) {    nodes.push(tempNode);  }
+         })
+        console.log(graph);
+        console.log(nodes);
+
+        var nodeMap = {};
+        graph.nodes.forEach(function(x) { nodeMap[x.name] = x; });
+        graph.links = graph.links.map(function(x) {
+          return {
+            source: nodeMap[x.source],
+            target: nodeMap[x.target],
+            value: x.value
+          };
+        });
+
+        var svg = d3.select("body").append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate (" + margin.left + ", " + margin.top + ")");
+        var tip = d3.tip()
+            .attr("class", "tip")
+            .html(function(d) {
+                return "<span>" + d.source.name + " - " + d.target.name + " - " + d.value + " points</span>";    });
+        svg.call(tip);
+        var sankey = d3.sankey()
+            .nodeWidth(15)
+            .nodePadding(10)
+            .size([width, height]);
+        var path = sankey.link();
+        var color = d3.scale.category20c();
+
+
+        sankey.nodes(graph.nodes)
+            .links(graph.links)
+            .layout(32);
+        var link = svg.append("g")
+            .selectAll(".link")
+            .data(graph.links)
+            .enter()
+            .append("path")
+            .attr("class", "link")
+            .attr("d", path)
+            .attr("stroke-width", function(d) { return d.dy;    })
+            .on("mouseover", tip.show)
+            .on("mouseout", tip.hide);
+        var node = svg.append("g")
+            .selectAll(".node")
+            .data(graph.nodes)
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", function(d) {    return "translate(" + d.x + "," + d.y + ")";    });
+        node.append("rect")
+            .attr("width", sankey.nodeWidth())
+            .attr("height", function(d) {   return d.dy;    })
+            .attr("fill", function(d) {    return d.color = color(Math.random()); });
+        node.append("text")
+            .text(function(d) { return d.name;  })
+            .attr("x", sankey.nodeWidth() + 5)
+            .attr("y", function(d) {    return d.dy/2;  })
+            .attr("text-anchor", "start")
+            .filter(function(d) { return d.x > width / 2; })
+            .attr("x", -5)
+            .attr("text-anchor", "end");
+
+    }
+
+
+</script>
+</body>
+</html>

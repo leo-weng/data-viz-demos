@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="../lib/d3.v3.min.js"></script>
+<style>
+.axis line,
+.axis path {
+    fill: none;
+    stroke: #7f7f7f;
+}
+.axis text {
+    fill: #7f7f7f;
+    font-size: 9pt;
+    font-family: Consolas, courier;
+}
+text.names {
+    font-size: 11pt;
+    font-family: sans-serif;
+}
+text.values {
+    font-size: 9pt;
+    font-family: Consolas, courier;
+    fill: #ffffff;
+}
+text.axis {
+    font-size: 9pt;
+    font-family: Consolas, courier;
+}
+</style>
+<body>
+<script type="text/javascript">
+    var dataset = [{club:'Manchester United',value:{year_2013:3165, year_2014:2810, year_2015:3100, year_2016:3317, year_2017:4583}},
+        {club:'Chelsea',value:{year_2013:901, year_2014:868, year_2015:1370, year_2016:1661, year_2017:1845}},
+        {club:'Manchester City',value:{year_2013:689, year_2014:863, year_2015:1380, year_2016:1921, year_2017:2083}},
+        {club:'Liverpool',value:{year_2013:651, year_2014:704, year_2015:982, year_2016:1548, year_2017:1492}},
+        {club:'Arsenal',value:{year_2013:1326, year_2014:1331, year_2015:1310, year_2016:2017, year_2017:1932}}];
+
+    dataset.forEach(function(d) {
+        temp = d.value.year_2013 + d.value.year_2014 + d.value.year_2015 + d.value.year_2016 + d.value.year_2017;
+        d.total = temp;
+    });
+
+    var margin = {top: 50, bottom: 10, left: 20, right: 20},
+        namesWidth = 120,
+        lineWidth = 170,
+        lineHeight = 170,
+        buffer = 50;
+        titleHeight = 50,
+        width = 960 - margin.left - margin.right,
+        barWidth = width - namesWidth - lineWidth - buffer,
+        barHeight = 40,
+        height = 500 - margin.top - margin.bottom - titleHeight;
+
+    var barScale = d3.scale.linear().range([0,barWidth]);
+    barScale.domain([0, 18000]);
+
+    var svg = d3.select("body").append("svg")
+        .attr("width", 960)
+        .attr("height", 500)
+        .append("g")
+        .attr("transform", "translate (" + margin.left + ", " + margin.top + ")");
+    // club names
+    svg.selectAll("text.names")
+        .data(dataset)
+        .enter()
+        .append("text")
+        .text(function(d) { return d.club; })
+        .attr("x", namesWidth)
+        .attr("y", function(d,i) {  return titleHeight + i * barHeight + barHeight/2; })
+        .attr("class", "names")
+        .style("text-anchor", "end");
+    // club bars
+    svg.selectAll("rect")
+        .data(dataset)
+        .enter()
+        .append("rect")
+        .attr("x", namesWidth + 10)
+        .attr("y", function(d,i) {  return titleHeight + i * barHeight; })
+        .attr("width", function(d) {    return barScale(d.total);  })
+        .attr("height", barHeight - 5)
+        .attr("fill", "#afafaf")
+        .on("mouseover", mouseover)
+        .on("mouseout", mouseout);
+    // club values
+    svg.selectAll("text.values")
+        .data(dataset)
+        .enter()
+        .append("text")
+        .text(function(d) { return "$" + d.total; })
+        .attr("x", namesWidth + 20)
+        .attr("y", function(d,i) {  return titleHeight + i * barHeight + barHeight/2; })
+        .attr("class", "values");
+
+
+    function mouseover(d,i) {
+        color = "#ba3b0d";
+        d3.select(this)
+            .attr("fill", color);
+        values = [[2013,d.value.year_2013], [2014,d.value.year_2014], [2015,d.value.year_2015], [2016,d.value.year_2016], [2017,d.value.year_2017]];
+        max = Math.max(d.value.year_2013, d.value.year_2014, d.value.year_2015, d.value.year_2016, d.value.year_2017);
+        min = Math.min(d.value.year_2013, d.value.year_2014, d.value.year_2015, d.value.year_2016, d.value.year_2017);
+        range = max - min;
+        var xScale = d3.scale.linear().range([0,lineWidth]),
+            xAxis = d3.svg.axis().scale(xScale).orient("bottom").ticks(5).tickFormat(d3.format(".0f")),
+            yScale = d3.scale.linear().range([lineHeight,0]),
+            yAxis = d3.svg.axis().scale(yScale).orient("left");
+        xScale.domain([2013,2017]);
+        yScale.domain([min-range*0.2, max+range*0.2]);
+
+        svg.append("g")
+            .attr("class", "axis chart")
+            .attr("transform", "translate(" + (namesWidth+barWidth+buffer) + "," + lineHeight + ")")
+            .attr("stroke-width", "1px")
+            .call(xAxis)
+            .append("text")
+            .attr("class", "axis")
+            .attr("x", lineWidth)
+            .attr("y", 35)
+            .style("text-anchor", "end")
+            .text("Year");
+        svg.append("g")
+            .attr("class", "axis chart")
+            .attr("transform", "translate(" + (namesWidth+barWidth+buffer) + ", 0)")
+            .attr("stroke-width", "1px")
+            .call(yAxis)
+            .append("text")
+            .attr("class", "axis")
+            .attr("x", -35)
+            .attr("y", 0)
+            .style("text-anchor", "end")
+            .text("Value");
+
+        var line = d3.svg.line()
+            .x(function(d) {    return xScale(d[0])})
+            .y(function(d) {    return yScale(d[1])});
+        svg.append("g")
+            .attr("class", "chart")
+            .attr("transform", "translate(" + (namesWidth+barWidth+buffer) + ", 0)")
+            .append("path")
+            .attr("d", line(values))
+            .attr("fill", "none")
+            .attr("stroke-width", 2)
+            .attr("stroke", color);
+
+    }
+
+    function mouseout() {
+        d3.select(this)
+            .attr("fill", "#afafaf")
+        svg.selectAll("g.chart").remove();
+    }
+    
+</script>
+</body>
+</html>

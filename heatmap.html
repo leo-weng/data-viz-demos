@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script src="../lib/d3.v3.min.js"></script>
+<style>
+text.mono {
+    font-size: 10pt;
+    font-family: Consolas, courier;
+  }
+text.title {
+    font-size: 12pt;
+    font-family: Consolas, courier;
+}
+rect.bordered {
+    stroke: #bfbfbf;
+    stroke-width:1px;
+  }
+</style>
+<body>
+<div id = "picker"></div>
+<div id = "chart"></div>
+<script type="text/javascript">
+    var dataset = [];
+    var header = [];
+    var house = ["Baratheon","Greyjoy","Lannister","Martell","Stark","Targaryen","Tyrell"];
+    var seasons = [1,2,3,4,5,6];
+    var episodes = [1,2,3,4,5,6,7,8,9,10];
+    var currSeason = 1;
+
+    d3.select("#picker")
+        .append("text")
+        .text("Season ")
+        .attr("class", "mono");
+
+    var select = d3.select("#picker")
+        .append("select")
+        .attr("class", "select")
+        .on("change", onchange);
+
+    var options = select.selectAll("options")
+        .data(seasons)
+        .enter()
+        .append("option")
+        .text(function(d) { return d;   });
+
+    function onchange() {
+        selectValue = d3.select("select").property("value");
+        console.log(selectValue);
+        currSeason = selectValue;
+        d3.select("svg").remove();
+        go(currSeason);
+    }
+
+    d3.csv("heatmap.csv",function(data){
+        header = d3.keys(data[0]);
+        header.forEach(function(header){
+            data.forEach(function(d) {  d[header] = +d[header]; });
+        });
+        dataset = data;
+        console.log(dataset);
+        go(currSeason);
+    });
+
+    function findMax(seasonNum) {
+        max = 0;
+        house.forEach(function(h) {
+            dataset.forEach(function(d) {
+                if (d["season"] == seasonNum) {
+                    if (d[h] > max) {
+                        max = d[h];
+                    }
+                }
+            });
+        });
+        return max;
+    }
+
+    var go = function(currSeason){
+
+        var buckets = 9,
+            margin = {top: 50, bottom: 10, left: 20, right: 20},
+            titleHeight = 50,
+            namesWidth = 75,
+            width = 960 - margin.left - margin.right - namesWidth,
+            height = 500 - margin.top - margin.bottom,
+            gridSize = Math.floor(height / 10),
+            legendSize = gridSize * 1.2,
+            colors = ['#ffffe5','#fff7bc','#fee391','#fec44f','#fe9929','#ec7014','#cc4c02','#993404','#662506'];
+
+        var svg = d3.select("#chart")
+                    .append("svg")
+                    .attr("width", 960)
+                    .attr("height", 500)
+                    .append("g")
+                    .attr("transform", "translate (" + margin.left + ", " + margin.top + ")");
+        svg.append("text")
+            .text("GoT Character Appearance HeatMap")
+            .attr("x", namesWidth *2)
+            .attr("y", 0)
+            .attr("class", "title")
+        var houseLabels = svg.selectAll(".houseLabel")
+                    .data(house)
+                    .enter()
+                    .append("text")
+                    .text(function(d) { return d;   })
+                    .attr("x", namesWidth)
+                    .attr("y", function(d,i) {  return i * gridSize + gridSize/2 + titleHeight;    })
+                    .attr("class", "mono")
+                    .style("text-anchor", "end");
+        svg.append("text")
+            .text("↓ House")
+            .attr("x", namesWidth)
+            .attr("y", 45)
+            .attr("class", "mono")
+            .style("text-anchor", "end");
+        var episodeLabels = svg.selectAll(".episodeLabel")
+                    .data(episodes)
+                    .enter()
+                    .append("text")
+                    .text(function(d) { return d;   })
+                    .attr("x", function(d) {   return namesWidth + d*gridSize - 8;  })
+                    .attr("y", 40)
+                    .attr("class", "mono");
+        svg.append("text")
+            .text("← Episodes")
+            .attr("x", namesWidth + 11*gridSize)
+            .attr("y", 40)
+            .attr("class", "mono");
+
+        var colorScale = d3.scale.quantile()
+                      .domain([0, buckets, findMax(currSeason)])
+                      .range(colors);
+
+        for (ind = 0; ind < house.length; ind++) {
+            var className = house[ind];
+            var temp = "rect." + className;
+            svg.selectAll(temp)
+                    .data(dataset)
+                    .enter()
+                    .append("rect")
+                    .filter(function(d) {   return d["season"] == currSeason; })
+                    .attr("class", function(d) {    return className + " bordered"; }   )
+                    .attr("x", function(d) {   return namesWidth + (d["episode"]-1)*gridSize + gridSize/2;  })
+                    .attr("y", function(d) {    return ind * gridSize + titleHeight;  })
+                    .attr("width", gridSize-2)
+                    .attr("height", gridSize-2)
+                    .attr("data", function(d) { return d[className]; })
+                    .attr("fill", function(d) { return colorScale(d[className]); });
+        }
+
+        var legend = svg.selectAll(".legend")
+              .data([0].concat(colorScale.quantiles()), function(d) { return d; })
+              .enter()
+              .append("g")
+              .attr("class", "legend");
+        legend.append("rect")
+              .attr("x", function(d,i) {    return legendSize * i + gridSize;  })
+              .attr("y", function(d) {  return gridSize * (house.length+1) + titleHeight;   })
+              .attr("width", legendSize)
+              .attr("height", legendSize / 2)
+              .attr("class", "bordered")
+              .attr("fill", function(d,i) { return colors[i];   });
+        legend.append("text")
+            .text(function(d) { return Math.round(d);   })
+            .attr("x", function(d,i) {  return legendSize * i + gridSize;   })
+            .attr("y", gridSize * (house.length+1) + titleHeight + legendSize*0.8)
+            .attr("class", "mono");
+
+
+    }
+
+</script>
+</body>
+</html>
